@@ -25,16 +25,19 @@
         }
         h1 {
             color: #2c3e50;
+            margin-bottom: 20px;
         }
         #category {
             font-size: 18px;
             color: #3498db;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
         #word-display {
-            font-size: 28px;
+            font-size: 32px;
             margin-bottom: 20px;
-            letter-spacing: 3px;
+            letter-spacing: 5px;
+            font-weight: bold;
+            color: #34495e;
         }
         #hangman {
             font-family: monospace;
@@ -47,31 +50,37 @@
             font-size: 18px;
             margin-bottom: 20px;
             font-weight: bold;
+            color: #27ae60;
         }
         .keyboard {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 5px;
+            gap: 8px;
             margin-bottom: 20px;
         }
         .key {
-            font-size: 18px;
-            padding: 10px 15px;
-            margin: 2px;
+            font-size: 20px;
+            width: 40px;
+            height: 40px;
             cursor: pointer;
             background-color: #3498db;
             color: white;
             border: none;
             border-radius: 5px;
-            transition: background-color 0.3s;
+            transition: all 0.3s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         .key:hover {
             background-color: #2980b9;
+            transform: scale(1.1);
         }
         .key:disabled {
             background-color: #bdc3c7;
             cursor: not-allowed;
+            transform: scale(1);
         }
         #restart-btn {
             font-size: 18px;
@@ -82,9 +91,34 @@
             border-radius: 5px;
             cursor: pointer;
             transition: background-color 0.3s;
+            margin-bottom: 20px;
         }
         #restart-btn:hover {
             background-color: #27ae60;
+        }
+        .shake {
+            animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        #stats {
+            background-color: #ecf0f1;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        #stats h2 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
         }
     </style>
 </head>
@@ -96,21 +130,46 @@
         <div id="word-display"></div>
         <div id="message"></div>
         <div class="keyboard" id="keyboard"></div>
-        <button id="restart-btn" onclick="initGame()">Restart Game</button>
+        <button id="restart-btn" onclick="initGame()">New Game</button>
+        <div id="stats">
+            <h2>Your Stats</h2>
+            <div class="stat">
+                <span>Games Won:</span>
+                <span id="games-won">0</span>
+            </div>
+            <div class="stat">
+                <span>Games Lost:</span>
+                <span id="games-lost">0</span>
+            </div>
+            <div class="stat">
+                <span>Win Streak:</span>
+                <span id="win-streak">0</span>
+            </div>
+            <div class="stat">
+                <span>Longest Win Streak:</span>
+                <span id="longest-streak">0</span>
+            </div>
+        </div>
     </div>
 
     <script>
         const categories = {
-            'Programming Languages': ['javascript', 'python', 'java', 'ruby', 'php', 'swift', 'typescript'],
-            'Web Technologies': ['html', 'css', 'react', 'angular', 'vue', 'nodejs', 'express'],
-            'Animals': ['elephant', 'giraffe', 'penguin', 'kangaroo', 'dolphin', 'cheetah', 'koala'],
-            'Countries': ['canada', 'japan', 'brazil', 'australia', 'france', 'egypt', 'india']
+            'Programming Languages': ['javascript', 'python', 'java', 'ruby', 'php', 'swift', 'typescript', 'golang', 'rust', 'kotlin'],
+            'Web Technologies': ['html', 'css', 'react', 'angular', 'vue', 'nodejs', 'express', 'django', 'flask', 'laravel'],
+            'Animals': ['elephant', 'giraffe', 'penguin', 'kangaroo', 'dolphin', 'cheetah', 'koala', 'platypus', 'octopus', 'hedgehog'],
+            'Countries': ['canada', 'japan', 'brazil', 'australia', 'france', 'egypt', 'india', 'morocco', 'sweden', 'thailand']
         };
 
         let selectedWord = '';
         let selectedCategory = '';
         let guessedLetters = [];
         let remainingGuesses = 6;
+        let stats = {
+            gamesWon: 0,
+            gamesLost: 0,
+            winStreak: 0,
+            longestStreak: 0
+        };
 
         const hangmanStages = [
             `
@@ -211,12 +270,17 @@
 
             if (remainingGuesses === 0) {
                 messageDisplay.textContent = `Game over! The word was "${selectedWord}".`;
+                messageDisplay.style.color = '#e74c3c';
                 disableAllKeys();
+                updateStats(false);
             } else if (!wordDisplay.textContent.includes('_')) {
                 messageDisplay.textContent = 'Congratulations! You won!';
+                messageDisplay.style.color = '#27ae60';
                 disableAllKeys();
+                updateStats(true);
             } else {
                 messageDisplay.textContent = `Remaining guesses: ${remainingGuesses}`;
+                messageDisplay.style.color = '#3498db';
             }
         }
 
@@ -224,10 +288,15 @@
             if (guessedLetters.includes(letter)) return;
 
             guessedLetters.push(letter);
-            document.querySelector(`.key:nth-child(${letter.charCodeAt(0) - 96})`).disabled = true;
+            const key = document.querySelector(`.key:nth-child(${letter.charCodeAt(0) - 96})`);
+            key.disabled = true;
 
             if (!selectedWord.toLowerCase().includes(letter)) {
                 remainingGuesses--;
+                key.classList.add('shake');
+                setTimeout(() => key.classList.remove('shake'), 500);
+            } else {
+                key.style.backgroundColor = '#2ecc71';
             }
 
             updateDisplay();
@@ -240,7 +309,42 @@
             }
         }
 
-        window.onload = initGame;
+        function updateStats(won) {
+            if (won) {
+                stats.gamesWon++;
+                stats.winStreak++;
+                stats.longestStreak = Math.max(stats.longestStreak, stats.winStreak);
+            } else {
+                stats.gamesLost++;
+                stats.winStreak = 0;
+            }
+            saveStats();
+            displayStats();
+        }
+
+        function saveStats() {
+            localStorage.setItem('hangmanStats', JSON.stringify(stats));
+        }
+
+        function loadStats() {
+            const savedStats = localStorage.getItem('hangmanStats');
+            if (savedStats) {
+                stats = JSON.parse(savedStats);
+            }
+            displayStats();
+        }
+
+        function displayStats() {
+            document.getElementById('games-won').textContent = stats.gamesWon;
+            document.getElementById('games-lost').textContent = stats.gamesLost;
+            document.getElementById('win-streak').textContent = stats.winStreak;
+            document.getElementById('longest-streak').textContent = stats.longestStreak;
+        }
+
+        window.onload = function() {
+            loadStats();
+            initGame();
+        };
     </script>
 </body>
 </html>
