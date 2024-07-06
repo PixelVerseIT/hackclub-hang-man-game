@@ -12,8 +12,6 @@
         // Set up the canvas
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         const gridSize = 20;
         const tileCount = 20;
@@ -27,13 +25,49 @@
         let dy = 0;
 
         let score = 0;
-        
+        let highScore = 0;
+
+        let gameSpeed = 100;
+        let gameLoop;
+
+        let gameState = 'start'; // 'start', 'playing', 'gameover'
 
         function drawGame() {
-            moveSnake();
-            drawSnake();
-            drawFood();
-            drawScore();
+            clearCanvas();
+            
+            if (gameState === 'start') {
+                drawStartScreen();
+            } else if (gameState === 'playing') {
+                moveSnake();
+                drawSnake();
+                drawFood();
+                checkCollision();
+                drawScore();
+            } else if (gameState === 'gameover') {
+                drawGameOverScreen();
+            }
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawStartScreen() {
+            ctx.fillStyle = 'white';
+            ctx.font = '30px Arial';
+            ctx.fillText('Snake Game', 130, 180);
+            ctx.font = '20px Arial';
+            ctx.fillText('Press Space to Start', 120, 220);
+        }
+
+        function drawGameOverScreen() {
+            ctx.fillStyle = 'white';
+            ctx.font = '30px Arial';
+            ctx.fillText('Game Over', 140, 180);
+            ctx.font = '20px Arial';
+            ctx.fillText(`Score: ${score}`, 170, 220);
+            ctx.fillText('Press Space to Restart', 110, 260);
         }
 
         function moveSnake() {
@@ -42,7 +76,11 @@
             
             if (head.x === food.x && head.y === food.y) {
                 score++;
+                if (score > highScore) {
+                    highScore = score;
+                }
                 generateFood();
+                increaseSpeed();
             } else {
                 snake.pop();
             }
@@ -50,19 +88,53 @@
 
         function drawSnake() {
             ctx.fillStyle = 'lime';
-            snake.forEach(segment => {
+            snake.forEach((segment, index) => {
+                if (index === 0) {
+                    // Draw snake head
+                    ctx.fillStyle = 'lightgreen';
+                } else {
+                    // Draw snake body
+                    ctx.fillStyle = `rgb(0, ${255 - index * 10}, 0)`;
+                }
                 ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
             });
         }
 
         function drawFood() {
             ctx.fillStyle = 'red';
-            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+            ctx.beginPath();
+            ctx.arc((food.x * gridSize) + gridSize / 2, (food.y * gridSize) + gridSize / 2, gridSize / 2, 0, 2 * Math.PI);
+            ctx.fill();
         }
 
         function generateFood() {
             food.x = Math.floor(Math.random() * tileCount);
             food.y = Math.floor(Math.random() * tileCount);
+            // Ensure food doesn't spawn on snake
+            snake.forEach(segment => {
+                if (segment.x === food.x && segment.y === food.y) {
+                    generateFood();
+                }
+            });
+        }
+
+        function checkCollision() {
+            const head = snake[0];
+            
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                gameOver();
+            }
+            
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    gameOver();
+                }
+            }
+        }
+
+        function gameOver() {
+            gameState = 'gameover';
+            clearInterval(gameLoop);
         }
 
         function resetGame() {
@@ -71,15 +143,37 @@
             dx = 0;
             dy = 0;
             score = 0;
+            gameSpeed = 100;
+            gameState = 'playing';
+            startGameLoop();
         }
 
         function drawScore() {
             ctx.fillStyle = 'white';
             ctx.font = '20px Arial';
             ctx.fillText(`Score: ${score}`, 10, 30);
+            ctx.fillText(`High Score: ${highScore}`, canvas.width - 150, 30);
         }
 
-        document.addEventListener('keydown', changeDirection);
+        function increaseSpeed() {
+            if (gameSpeed > 50) {
+                gameSpeed -= 2;
+                clearInterval(gameLoop);
+                startGameLoop();
+            }
+        }
+
+        document.addEventListener('keydown', handleKeyPress);
+
+        function handleKeyPress(event) {
+            if (gameState === 'start' || gameState === 'gameover') {
+                if (event.code === 'Space') {
+                    resetGame();
+                }
+            } else if (gameState === 'playing') {
+                changeDirection(event);
+            }
+        }
 
         function changeDirection(event) {
             const LEFT_KEY = 37;
@@ -115,12 +209,11 @@
             }
         }
 
-        function gameLoop() {
-            drawGame();
-            setTimeout(gameLoop, 100);
+        function startGameLoop() {
+            gameLoop = setInterval(drawGame, gameSpeed);
         }
 
-        gameLoop();
+        drawGame(); // Initial draw to show start screen
     </script>
 </body>
 </html>
