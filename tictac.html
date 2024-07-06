@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic Tac Toe</title>
+    <link rel="icon" href="img/favicon.png">
     <style>
         :root {
             --primary-color: #3498db;
@@ -110,9 +111,21 @@
         .winning-cell {
             background-color: var(--secondary-color);
         }
+        .go-back {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            text-decoration: none;
+            color: #3498db;
+            font-size: 24px;
+        }
+        .go-back:hover {
+            color: #2980b9;
+        }
     </style>
 </head>
 <body>
+    <a href="../../index.html" class="go-back">&larr; Home</a>
     <div class="game-container">
         <h1>Tic Tac Toe</h1>
         <div id="status">Player X's turn</div>

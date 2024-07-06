@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Snake Game</title>
+    <link rel="icon" href="img/favicon.png">
     <style>
         body {
             background-color: #0f0f1a;
@@ -15,9 +16,21 @@
         canvas {
             border: 2px solid #16c79a;
         }
+        .go-back {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            text-decoration: none;
+            color: #3498db;
+            font-size: 24px;
+        }
+        .go-back:hover {
+            color: #2980b9;
+        }
     </style>
 </head>
 <body>
+    <a href="../../index.html" class="go-back">&larr; Home</a>
     <canvas id="gameCanvas" width="400" height="400"></canvas>
     <script>
         // Set up the canvas
@@ -48,6 +61,7 @@
 
         let powerUpActive = false;
         let powerUpTimer = 0;
+        const powerUpDuration = 10 * 1000 / gameSpeed; // 10 seconds in game ticks
 
         // Colors
         const colors = {
@@ -229,7 +243,7 @@
 
         function activatePowerUp() {
             powerUpActive = true;
-            powerUpTimer = 200; // Active for 200 game ticks
+            powerUpTimer = powerUpDuration;
             powerUp = null;
         }
 
@@ -245,15 +259,12 @@
         function checkCollision() {
             const head = snake[0];
             
-            // Wall collision
-            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
-                gameOver();
-                return;
-            }
-            
-            // Self collision
-            for (let i = 1; i < snake.length; i++) {
-                if (head.x === snake[i].x && head.y === snake[i].y) {
+            // Wall collision or self collision
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount ||
+                snake.slice(1).some(segment => segment.x === head.x && segment.y === head.y)) {
+                if (powerUpActive) {
+                    teleportSnake();
+                } else {
                     gameOver();
                     return;
                 }
@@ -264,6 +275,24 @@
                 gameOver();
                 return;
             }
+        }
+
+        function teleportSnake() {
+            // Teleport to center
+            const centerX = Math.floor(tileCount / 2);
+            const centerY = Math.floor(tileCount / 2);
+            
+            // Move the head to the center
+            snake[0] = { x: centerX, y: centerY };
+            
+            // Adjust the rest of the body
+            for (let i = 1; i < snake.length; i++) {
+                snake[i] = { x: centerX, y: centerY + i };
+            }
+            
+            // Reset direction to upwards
+            dx = 0;
+            dy = -1;
         }
 
         function gameOver() {
@@ -297,6 +326,11 @@
             ctx.font = '20px Arial';
             ctx.fillText(`Score: ${score}`, 10, 30);
             ctx.fillText(`High Score: ${highScore}`, canvas.width - 150, 30);
+            
+            if (powerUpActive) {
+                ctx.fillStyle = colors.powerUp;
+                ctx.fillText(`Immunity: ${Math.ceil(powerUpTimer * gameSpeed / 1000)}s`, 10, canvas.height - 10);
+            }
         }
 
         function increaseSpeed() {
