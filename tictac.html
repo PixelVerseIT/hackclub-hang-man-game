@@ -5,39 +5,108 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic Tac Toe</title>
     <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --background-color: #f0f0f0;
+            --text-color: #2c3e50;
+            --cell-size: 100px;
+        }
         body {
             font-family: 'Arial', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #f0f0f0;
+            background-color: var(--background-color);
             margin: 0;
+            color: var(--text-color);
+        }
+        .game-container {
+            text-align: center;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
         }
         h1 {
-            color: #2c3e50;
+            color: var(--primary-color);
             margin-bottom: 20px;
         }
         .board {
             display: grid;
-            grid-template-columns: repeat(3, 100px);
+            grid-template-columns: repeat(3, var(--cell-size));
             grid-gap: 5px;
             margin-bottom: 20px;
         }
         .cell {
-            width: 100px;
-            height: 100px;
-            background-color: #3498db;
+            width: var(--cell-size);
+            height: var(--cell-size);
+            background-color: var(--primary-color);
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 40px;
             color: white;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
         }
         .cell:hover {
             background-color: #2980b9;
+        }
+        .cell.x::before, .cell.o::before {
+            position: absolute;
+            content: '';
+            font-size: 80px;
+            line-height: var(--cell-size);
+            animation: fadeIn 0.5s;
+        }
+        .cell.x::before {
+            content: '×';
+        }
+        .cell.o::before {
+            content: '○';
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        #status {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            height: 30px;
+        }
+        button {
+            font-size: 18px;
+            padding: 10px 20px;
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #27ae60;
+        }
+        #score, #history {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        #history {
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .winning-cell {
+            background-color: var(--secondary-color);
         }
     </style>
 </head>
@@ -57,26 +126,39 @@
             <div class="cell" data-cell-index="8"></div>
         </div>
         <button id="restart-btn">Restart Game</button>
+        <button id="undo-btn">Undo Last Move</button>
+        <div id="score">
+            X Wins: <span id="x-wins">0</span> |
+            O Wins: <span id="o-wins">0</span> |
+            Ties: <span id="ties">0</span>
+        </div>
+        <div id="history"></div>
     </div>
 
     <script>
+        // Game state
         let currentPlayer = 'X';
         let gameState = ['', '', '', '', '', '', '', '', ''];
         let gameActive = true;
+        let moveHistory = [];
 
+        // Winning conditions
         const winningConditions = [
-            [0, 1, 2],
-            [3, 4, 5],
-            [6, 7, 8],
-            [0, 3, 6],
-            [1, 4, 7],
-            [2, 5, 8],
-            [0, 4, 8],
-            [2, 4, 6]
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
         ];
 
-        function handleCellClick(clickedCellEvent) {
-            const clickedCell = clickedCellEvent.target;
+        // Score object
+        let score = {
+            X: 0,
+            O: 0,
+            ties: 0
+        };
+
+        // Handle cell click event
+        function handleCellClick(event) {
+            const clickedCell = event.target;
             const clickedCellIndex = parseInt(clickedCell.getAttribute('data-cell-index'));
 
             if (gameState[clickedCellIndex] !== '' || !gameActive) {
@@ -84,18 +166,23 @@
             }
 
             gameState[clickedCellIndex] = currentPlayer;
-            clickedCell.textContent = currentPlayer;
+            clickedCell.classList.add(currentPlayer.toLowerCase());
+            moveHistory.push(clickedCellIndex);
 
             checkForWin();
         }
 
+        // Check for a win or draw
         function checkForWin() {
             let roundWon = false;
+            let winningCombo;
 
             for (let i = 0; i < winningConditions.length; i++) {
-                const [a, b, c] = winningConditions[i];
+                const condition = winningConditions[i];
+                const [a, b, c] = condition;
                 if (gameState[a] && gameState[a] === gameState[b] && gameState[a] === gameState[c]) {
                     roundWon = true;
+                    winningCombo = condition;
                     break;
                 }
             }
@@ -103,38 +190,102 @@
             if (roundWon) {
                 updateStatus(`Player ${currentPlayer} has won!`);
                 gameActive = false;
+                updateScore(currentPlayer);
+                updateHistory(`${currentPlayer} won`);
+                highlightWinningCells(winningCombo);
                 return;
             }
 
-            const roundDraw = !gameState.includes('');
-            if (roundDraw) {
+            if (!gameState.includes('')) {
                 updateStatus("It's a draw!");
                 gameActive = false;
+                updateScore('tie');
+                updateHistory("It's a draw");
                 return;
             }
 
             currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
             updateStatus(`Player ${currentPlayer}'s turn`);
         }
-        
 
+        // Highlight winning cells
+        function highlightWinningCells(combo) {
+            combo.forEach(index => {
+                document.querySelector(`[data-cell-index="${index}"]`).classList.add('winning-cell');
+            });
+        }
+
+        // Update game status message
         function updateStatus(message) {
             document.getElementById('status').textContent = message;
         }
 
+        // Update score and save to local storage
+        function updateScore(result) {
+            if (result === 'X' || result === 'O') {
+                score[result]++;
+            } else {
+                score.ties++;
+            }
+            document.getElementById('x-wins').textContent = score.X;
+            document.getElementById('o-wins').textContent = score.O;
+            document.getElementById('ties').textContent = score.ties;
+            localStorage.setItem('ticTacToeScore', JSON.stringify(score));
+        }
+
+        // Update game history
+        function updateHistory(result) {
+            const historyDiv = document.getElementById('history');
+            const newEntry = document.createElement('div');
+            newEntry.textContent = `Game ${historyDiv.childElementCount + 1}: ${result}`;
+            historyDiv.insertBefore(newEntry, historyDiv.firstChild);
+            if (historyDiv.childElementCount > 10) {
+                historyDiv.removeChild(historyDiv.lastChild);
+            }
+        }
+
+        // Restart the game
         function restartGame() {
             currentPlayer = 'X';
             gameState = ['', '', '', '', '', '', '', '', ''];
             gameActive = true;
+            moveHistory = [];
             updateStatus(`Player ${currentPlayer}'s turn`);
-            document.querySelectorAll('.cell').forEach(cell => cell.textContent = '');
+            document.querySelectorAll('.cell').forEach(cell => {
+                cell.textContent = '';
+                cell.classList.remove('x', 'o', 'winning-cell');
+            });
         }
 
+        // Undo last move
+        function undoLastMove() {
+            if (moveHistory.length === 0 || !gameActive) {
+                return;
+            }
+            const lastMove = moveHistory.pop();
+            gameState[lastMove] = '';
+            const cell = document.querySelector(`[data-cell-index="${lastMove}"]`);
+            cell.classList.remove('x', 'o');
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            updateStatus(`Player ${currentPlayer}'s turn`);
+        }
 
+        // Load score from local storage
+        function loadScore() {
+            const savedScore = localStorage.getItem('ticTacToeScore');
+            if (savedScore) {
+                score = JSON.parse(savedScore);
+                document.getElementById('x-wins').textContent = score.X;
+                document.getElementById('o-wins').textContent = score.O;
+                document.getElementById('ties').textContent = score.ties;
+            }
+        }
+
+        // Add event listeners
         document.querySelectorAll('.cell').forEach(cell => cell.addEventListener('click', handleCellClick));
         document.getElementById('restart-btn').addEventListener('click', restartGame);
-
-    
+        document.getElementById('undo-btn').addEventListener('click', undoLastMove);
+        window.addEventListener('load', loadScore);
     </script>
 </body>
 </html>
