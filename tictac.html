@@ -17,7 +17,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             background-color: var(--background-color);
             margin: 0;
             color: var(--text-color);
@@ -37,7 +37,9 @@
             display: grid;
             grid-template-columns: repeat(3, var(--cell-size));
             grid-gap: 5px;
-            margin-bottom: 20px;
+            margin: 0 auto;
+            justify-content: center;
+            align-items: center;
         }
         .cell {
             width: var(--cell-size);
@@ -79,7 +81,7 @@
             margin-bottom: 20px;
             height: 30px;
         }
-        button {
+        button, select {
             font-size: 18px;
             padding: 10px 20px;
             background-color: var(--secondary-color);
@@ -90,7 +92,7 @@
             transition: background-color 0.3s;
             margin: 5px;
         }
-        button:hover {
+        button:hover, select:hover {
             background-color: #27ae60;
         }
         #score, #history {
@@ -127,6 +129,15 @@
         </div>
         <button id="restart-btn">Restart Game</button>
         <button id="undo-btn">Undo Last Move</button>
+        <select id="game-mode">
+            <option value="human">Human vs Human</option>
+            <option value="ai">Human vs AI</option>
+        </select>
+        <select id="ai-difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+        </select>
         <div id="score">
             X Wins: <span id="x-wins">0</span> |
             O Wins: <span id="o-wins">0</span> |
@@ -141,6 +152,8 @@
         let gameState = ['', '', '', '', '', '', '', '', ''];
         let gameActive = true;
         let moveHistory = [];
+        let aiActive = false;
+        let aiDifficulty = 'easy';
 
         // Winning conditions
         const winningConditions = [
@@ -170,6 +183,100 @@
             moveHistory.push(clickedCellIndex);
 
             checkForWin();
+
+            if (gameActive && aiActive && currentPlayer === 'O') {
+                setTimeout(makeAIMove, 500);
+            }
+        }
+
+        // Make AI move
+        function makeAIMove() {
+            let bestMove;
+            switch (aiDifficulty) {
+                case 'easy':
+                    bestMove = getRandomEmptyCell();
+                    break;
+                case 'medium':
+                    bestMove = Math.random() < 0.5 ? getBestMove() : getRandomEmptyCell();
+                    break;
+                case 'hard':
+                    bestMove = getBestMove();
+                    break;
+            }
+
+            gameState[bestMove] = currentPlayer;
+            document.querySelector(`[data-cell-index="${bestMove}"]`).classList.add(currentPlayer.toLowerCase());
+            moveHistory.push(bestMove);
+            checkForWin();
+        }
+
+        // Get random empty cell for easy AI
+        function getRandomEmptyCell() {
+            const emptyCells = gameState.reduce((acc, cell, index) => cell === '' ? acc.concat(index) : acc, []);
+            return emptyCells[Math.floor(Math.random() * emptyCells.length)];
+        }
+
+        // Get best move for hard AI (using minimax algorithm)
+        function getBestMove() {
+            let bestScore = -Infinity;
+            let bestMove;
+            for (let i = 0; i < 9; i++) {
+                if (gameState[i] === '') {
+                    gameState[i] = 'O';
+                    let score = minimax(gameState, 0, false);
+                    gameState[i] = '';
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = i;
+                    }
+                }
+            }
+            return bestMove;
+        }
+
+        // Minimax algorithm for AI
+        function minimax(board, depth, isMaximizing) {
+            let result = checkWinner();
+            if (result !== null) {
+                return result === 'O' ? 10 - depth : result === 'X' ? depth - 10 : 0;
+            }
+
+            if (isMaximizing) {
+                let bestScore = -Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (board[i] === '') {
+                        board[i] = 'O';
+                        let score = minimax(board, depth + 1, false);
+                        board[i] = '';
+                        bestScore = Math.max(score, bestScore);
+                    }
+                }
+                return bestScore;
+            } else {
+                let bestScore = Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (board[i] === '') {
+                        board[i] = 'X';
+                        let score = minimax(board, depth + 1, true);
+                        board[i] = '';
+                        bestScore = Math.min(score, bestScore);
+                    }
+                }
+                return bestScore;
+            }
+        }
+
+        // Check for a winner
+        function checkWinner() {
+            for (let condition of winningConditions) {
+                if (gameState[condition[0]] && 
+                    gameState[condition[0]] === gameState[condition[1]] && 
+                    gameState[condition[0]] === gameState[condition[2]]) {
+                    return gameState[condition[0]];
+                }
+            }
+            if (!gameState.includes('')) return 'tie';
+            return null;
         }
 
         // Check for a win or draw
@@ -255,6 +362,9 @@
                 cell.textContent = '';
                 cell.classList.remove('x', 'o', 'winning-cell');
             });
+            if (aiActive && currentPlayer === 'O') {
+                setTimeout(makeAIMove, 500);
+            }
         }
 
         // Undo last move
@@ -268,6 +378,15 @@
             cell.classList.remove('x', 'o');
             currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
             updateStatus(`Player ${currentPlayer}'s turn`);
+
+            if (aiActive && moveHistory.length > 0) {
+                const aiLastMove = moveHistory.pop();
+                gameState[aiLastMove] = '';
+                const aiCell = document.querySelector(`[data-cell-index="${aiLastMove}"]`);
+                aiCell.classList.remove('x', 'o');
+                currentPlayer = 'X';
+                updateStatus(`Player ${currentPlayer}'s turn`);
+            }
         }
 
         // Load score from local storage
@@ -281,11 +400,29 @@
             }
         }
 
+        // Toggle AI mode
+        function toggleAIMode(event) {
+            aiActive = event.target.value === 'ai';
+            if (aiActive && currentPlayer === 'O') {
+                setTimeout(makeAIMove, 500);
+            }
+        }
+
+        // Change AI difficulty
+        function changeAIDifficulty(event) {
+            aiDifficulty = event.target.value;
+        }
+
         // Add event listeners
         document.querySelectorAll('.cell').forEach(cell => cell.addEventListener('click', handleCellClick));
         document.getElementById('restart-btn').addEventListener('click', restartGame);
         document.getElementById('undo-btn').addEventListener('click', undoLastMove);
+        document.getElementById('game-mode').addEventListener('change', toggleAIMode);
+        document.getElementById('ai-difficulty').addEventListener('change', changeAIDifficulty);
         window.addEventListener('load', loadScore);
+
+        // Initialize game
+        loadScore();
     </script>
 </body>
 </html>
