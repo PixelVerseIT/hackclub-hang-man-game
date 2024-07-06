@@ -3,7 +3,18 @@
 <head>
     <title>Snake Game</title>
     <style>
-        canvas { border: 1px solid white; }
+        body {
+            background-color: #0f0f1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 2px solid #16c79a;
+        }
     </style>
 </head>
 <body>
@@ -20,17 +31,34 @@
             {x: 10, y: 10},
         ];
         let food = {x: 15, y: 15};
+        let powerUp = null;
+        let obstacles = [];
 
         let dx = 0;
         let dy = 0;
 
         let score = 0;
-        let highScore = 0;
+        let highScore = localStorage.getItem('snakeHighScore') || 0;
 
         let gameSpeed = 100;
         let gameLoop;
 
         let gameState = 'start'; // 'start', 'playing', 'gameover'
+        let isPaused = false;
+
+        let powerUpActive = false;
+        let powerUpTimer = 0;
+
+        // Colors
+        const colors = {
+            background: '#1a1a2e',
+            snake: '#16c79a',
+            snakePoweredUp: '#ffd700',
+            food: '#f05454',
+            powerUp: '#9b5de5',
+            obstacle: '#666666',
+            text: '#e8e8e8'
+        };
 
         function drawGame() {
             clearCanvas();
@@ -38,36 +66,68 @@
             if (gameState === 'start') {
                 drawStartScreen();
             } else if (gameState === 'playing') {
-                moveSnake();
+                if (!isPaused) {
+                    moveSnake();
+                    checkCollision();
+                    updatePowerUp();
+                }
+                drawObstacles();
                 drawSnake();
                 drawFood();
-                checkCollision();
+                if (powerUp) drawPowerUp();
                 drawScore();
+                if (isPaused) drawPauseScreen();
             } else if (gameState === 'gameover') {
                 drawGameOverScreen();
             }
         }
 
         function clearCanvas() {
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = colors.background;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
         function drawStartScreen() {
-            ctx.fillStyle = 'white';
-            ctx.font = '30px Arial';
-            ctx.fillText('Snake Game', 130, 180);
+            ctx.fillStyle = colors.text;
+            ctx.font = 'bold 30px Arial';
+            ctx.fillText('Snake Game', 130, 160);
             ctx.font = '20px Arial';
-            ctx.fillText('Press Space to Start', 120, 220);
+            ctx.fillText('Press Space to Start', 120, 200);
+            ctx.fillText(`High Score: ${highScore}`, 140, 240);
+            ctx.font = '16px Arial';
+            ctx.fillText('Use arrow keys to move', 130, 280);
+            ctx.fillText('P to pause', 170, 310);
+        }
+
+        function drawPauseScreen() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = colors.text;
+            ctx.font = 'bold 30px Arial';
+            ctx.fillText('PAUSED', 150, 200);
+            ctx.font = '20px Arial';
+            ctx.fillText('Press P to resume', 130, 240);
         }
 
         function drawGameOverScreen() {
-            ctx.fillStyle = 'white';
-            ctx.font = '30px Arial';
-            ctx.fillText('Game Over', 140, 180);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = colors.text;
+            ctx.font = 'bold 40px Arial';
+            ctx.fillText('GAME OVER', 100, 160);
+            ctx.font = 'bold 25px Arial';
+            ctx.fillText(`Score: ${score}`, 160, 220);
+            ctx.fillText(`High Score: ${highScore}`, 130, 260);
             ctx.font = '20px Arial';
-            ctx.fillText(`Score: ${score}`, 170, 220);
-            ctx.fillText('Press Space to Restart', 110, 260);
+            ctx.fillText('Press Space to Restart', 110, 300);
+            
+            // Draw snake outline
+            ctx.strokeStyle = colors.snake;
+            ctx.lineWidth = 2;
+            snake.forEach(segment => {
+                ctx.strokeRect(segment.x * gridSize, segment.y * gridSize, gridSize, gridSize);
+            });
         }
 
         function moveSnake() {
@@ -78,78 +138,162 @@
                 score++;
                 if (score > highScore) {
                     highScore = score;
+                    localStorage.setItem('snakeHighScore', highScore);
                 }
                 generateFood();
                 increaseSpeed();
+                if (Math.random() < 0.2) generatePowerUp();
+                if (score % 5 === 0) generateObstacle();
             } else {
                 snake.pop();
+            }
+
+            if (powerUp && head.x === powerUp.x && head.y === powerUp.y) {
+                activatePowerUp();
             }
         }
 
         function drawSnake() {
-            ctx.fillStyle = 'lime';
             snake.forEach((segment, index) => {
-                if (index === 0) {
-                    // Draw snake head
-                    ctx.fillStyle = 'lightgreen';
-                } else {
-                    // Draw snake body
-                    ctx.fillStyle = `rgb(0, ${255 - index * 10}, 0)`;
-                }
-                ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
+                const alpha = 1 - (index / snake.length) * 0.6;
+                ctx.fillStyle = powerUpActive ? `rgba(255, 215, 0, ${alpha})` : `rgba(22, 199, 154, ${alpha})`;
+                ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
             });
+            
+            // Draw snake eyes
+            const head = snake[0];
+            const eyeSize = 3;
+            ctx.fillStyle = colors.background;
+            ctx.fillRect((head.x * gridSize) + 4, (head.y * gridSize) + 4, eyeSize, eyeSize);
+            ctx.fillRect((head.x * gridSize) + gridSize - 7, (head.y * gridSize) + 4, eyeSize, eyeSize);
         }
 
         function drawFood() {
-            ctx.fillStyle = 'red';
+            ctx.fillStyle = colors.food;
             ctx.beginPath();
-            ctx.arc((food.x * gridSize) + gridSize / 2, (food.y * gridSize) + gridSize / 2, gridSize / 2, 0, 2 * Math.PI);
+            ctx.arc((food.x * gridSize) + gridSize / 2, (food.y * gridSize) + gridSize / 2, gridSize / 2 - 1, 0, 2 * Math.PI);
             ctx.fill();
         }
 
-        function generateFood() {
-            food.x = Math.floor(Math.random() * tileCount);
-            food.y = Math.floor(Math.random() * tileCount);
-            // Ensure food doesn't spawn on snake
-            snake.forEach(segment => {
-                if (segment.x === food.x && segment.y === food.y) {
-                    generateFood();
-                }
+        function drawPowerUp() {
+            ctx.fillStyle = colors.powerUp;
+            ctx.beginPath();
+            ctx.moveTo(powerUp.x * gridSize + gridSize / 2, powerUp.y * gridSize);
+            ctx.lineTo(powerUp.x * gridSize + gridSize, powerUp.y * gridSize + gridSize / 2);
+            ctx.lineTo(powerUp.x * gridSize + gridSize / 2, powerUp.y * gridSize + gridSize);
+            ctx.lineTo(powerUp.x * gridSize, powerUp.y * gridSize + gridSize / 2);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawObstacles() {
+            ctx.fillStyle = colors.obstacle;
+            obstacles.forEach(obstacle => {
+                ctx.fillRect(obstacle.x * gridSize, obstacle.y * gridSize, gridSize, gridSize);
             });
+        }
+
+        function generateFood() {
+            do {
+                food.x = Math.floor(Math.random() * tileCount);
+                food.y = Math.floor(Math.random() * tileCount);
+            } while (snake.some(segment => segment.x === food.x && segment.y === food.y) ||
+                    obstacles.some(obstacle => obstacle.x === food.x && obstacle.y === food.y));
+        }
+
+        function generatePowerUp() {
+            if (powerUp) return;
+            do {
+                powerUp = {
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount)
+                };
+            } while (snake.some(segment => segment.x === powerUp.x && segment.y === powerUp.y) ||
+                    obstacles.some(obstacle => obstacle.x === powerUp.x && obstacle.y === powerUp.y) ||
+                    (food.x === powerUp.x && food.y === powerUp.y));
+        }
+
+        function generateObstacle() {
+            let obstacle;
+            do {
+                obstacle = {
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount)
+                };
+            } while (snake.some(segment => segment.x === obstacle.x && segment.y === obstacle.y) ||
+                    obstacles.some(obs => obs.x === obstacle.x && obs.y === obstacle.y) ||
+                    (food.x === obstacle.x && food.y === obstacle.y) ||
+                    (powerUp && powerUp.x === obstacle.x && powerUp.y === obstacle.y));
+            obstacles.push(obstacle);
+        }
+
+        function activatePowerUp() {
+            powerUpActive = true;
+            powerUpTimer = 200; // Active for 200 game ticks
+            powerUp = null;
+        }
+
+        function updatePowerUp() {
+            if (powerUpActive) {
+                powerUpTimer--;
+                if (powerUpTimer <= 0) {
+                    powerUpActive = false;
+                }
+            }
         }
 
         function checkCollision() {
             const head = snake[0];
             
+            // Wall collision
             if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
                 gameOver();
+                return;
             }
             
+            // Self collision
             for (let i = 1; i < snake.length; i++) {
                 if (head.x === snake[i].x && head.y === snake[i].y) {
                     gameOver();
+                    return;
                 }
+            }
+            
+            // Obstacle collision
+            if (!powerUpActive && obstacles.some(obstacle => head.x === obstacle.x && head.y === obstacle.y)) {
+                gameOver();
+                return;
             }
         }
 
         function gameOver() {
             gameState = 'gameover';
             clearInterval(gameLoop);
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snakeHighScore', highScore);
+            }
+            drawGame(); // Immediately draw the game over screen
         }
 
         function resetGame() {
             snake = [{x: 10, y: 10}];
-            food = {x: 15, y: 15};
+            generateFood();
             dx = 0;
             dy = 0;
             score = 0;
             gameSpeed = 100;
             gameState = 'playing';
+            isPaused = false;
+            powerUpActive = false;
+            powerUpTimer = 0;
+            powerUp = null;
+            obstacles = [];
             startGameLoop();
         }
 
         function drawScore() {
-            ctx.fillStyle = 'white';
+            ctx.fillStyle = colors.text;
             ctx.font = '20px Arial';
             ctx.fillText(`Score: ${score}`, 10, 30);
             ctx.fillText(`High Score: ${highScore}`, canvas.width - 150, 30);
@@ -157,7 +301,7 @@
 
         function increaseSpeed() {
             if (gameSpeed > 50) {
-                gameSpeed -= 2;
+                gameSpeed -= 1;
                 clearInterval(gameLoop);
                 startGameLoop();
             }
@@ -171,7 +315,11 @@
                     resetGame();
                 }
             } else if (gameState === 'playing') {
-                changeDirection(event);
+                if (event.code === 'KeyP') {
+                    isPaused = !isPaused;
+                } else if (!isPaused) {
+                    changeDirection(event);
+                }
             }
         }
 
