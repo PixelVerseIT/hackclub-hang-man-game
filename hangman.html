@@ -42,10 +42,15 @@
             color: #2c3e50;
             margin-bottom: 20px;
         }
-        #category {
+        #category-select {
             font-size: 18px;
-            color: #3498db;
             margin-bottom: 15px;
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #3498db;
+            display: block;
+            margin-top: 5px;
+            align-items: center;
         }
         #word-display {
             font-size: 32px;
@@ -54,7 +59,6 @@
             font-weight: bold;
             color: #34495e;
         }
-        
         #message {
             font-size: 18px;
             margin-bottom: 20px;
@@ -132,16 +136,37 @@
         #hangman-canvas {
             margin-bottom: 20px;
         }
+        #hint-btn {
+            font-size: 16px;
+            padding: 5px 10px;
+            background-color: #f39c12;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-bottom: 10px;
+        }
+        #hint-btn:hover {
+            background-color: #d35400;
+        }
+        #hint {
+            font-style: italic;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
     <a href="index.html" class="go-back">&larr; Home</a>
     <div class="game-container">
         <h1>Hangman Game</h1>
-        <div id="category"></div>
+        <select id="category-select" onchange="initGame()"></select>
         <canvas id="hangman-canvas" width="200" height="250"></canvas>
         <div id="word-display"></div>
         <div id="message"></div>
+        <button id="hint-btn" onclick="showHint()">Get Hint</button>
+        <div id="hint"></div>
         <div class="keyboard" id="keyboard"></div>
         <button id="restart-btn" onclick="initGame()">New Game</button>
         <div id="stats">
@@ -167,10 +192,66 @@
 
     <script>
         const categories = {
-            'Programming Languages': ['javascript', 'python', 'java', 'ruby', 'php', 'swift', 'typescript', 'golang', 'rust', 'kotlin'],
-            'Web Technologies': ['html', 'css', 'react', 'angular', 'vue', 'nodejs', 'express', 'django', 'flask', 'laravel'],
-            'Animals': ['elephant', 'giraffe', 'penguin', 'kangaroo', 'dolphin', 'cheetah', 'koala', 'platypus', 'octopus', 'hedgehog'],
-            'Countries': ['canada', 'japan', 'brazil', 'australia', 'france', 'egypt', 'india', 'morocco', 'sweden', 'thailand']
+            'Programming Languages': {
+                words: ['javascript', 'python', 'java', 'ruby', 'php', 'swift', 'typescript', 'golang', 'rust', 'kotlin'],
+                hints: {
+                    'javascript': 'Widely used for web development',
+                    'python': 'Known for its simplicity and readability',
+                    'java': 'Write once, run anywhere',
+                    'ruby': 'Designed for programmer happiness',
+                    'php': 'Popular server-side scripting language',
+                    'swift': 'Used for iOS and macOS development',
+                    'typescript': 'Typed superset of JavaScript',
+                    'golang': 'Developed by Google',
+                    'rust': 'Focus on safety and concurrency',
+                    'kotlin': 'Modern alternative to Java'
+                }
+            },
+            'Web Technologies': {
+                words: ['html', 'css', 'react', 'angular', 'vue', 'nodejs', 'express', 'django', 'flask', 'laravel'],
+                hints: {
+                    'html': 'Markup language for web pages',
+                    'css': 'Styles web pages',
+                    'react': 'Facebook-developed JavaScript library',
+                    'angular': 'Google-developed web application framework',
+                    'vue': 'Progressive JavaScript framework',
+                    'nodejs': 'JavaScript runtime built on Chrome\'s V8 engine',
+                    'express': 'Web application framework for Node.js',
+                    'django': 'High-level Python web framework',
+                    'flask': 'Lightweight WSGI web application framework',
+                    'laravel': 'PHP web application framework'
+                }
+            },
+            'Animals': {
+                words: ['elephant', 'giraffe', 'penguin', 'kangaroo', 'dolphin', 'cheetah', 'koala', 'platypus', 'octopus', 'hedgehog'],
+                hints: {
+                    'elephant': 'Largest land animal',
+                    'giraffe': 'Tallest land animal',
+                    'penguin': 'Flightless bird that swims',
+                    'kangaroo': 'Marsupial known for hopping',
+                    'dolphin': 'Intelligent marine mammal',
+                    'cheetah': 'Fastest land animal',
+                    'koala': 'Tree-dwelling marsupial',
+                    'platypus': 'Egg-laying mammal',
+                    'octopus': 'Intelligent cephalopod',
+                    'hedgehog': 'Small spiny mammal'
+                }
+            },
+            'Countries': {
+                words: ['canada', 'japan', 'brazil', 'australia', 'france', 'egypt', 'india', 'morocco', 'sweden', 'thailand'],
+                hints: {
+                    'canada': 'Second largest country by land area',
+                    'japan': 'Land of the rising sun',
+                    'brazil': 'Largest country in South America',
+                    'australia': 'Both a country and a continent',
+                    'france': 'Known for the Eiffel Tower',
+                    'egypt': 'Home to the ancient pyramids',
+                    'india': 'Second most populous country',
+                    'morocco': 'Northwestern African country',
+                    'sweden': 'Scandinavian country',
+                    'thailand': 'Known as the Land of Smiles'
+                }
+            }
         };
 
         let selectedWord = '';
@@ -251,17 +332,18 @@
         }
 
         function initGame() {
-            const categoryKeys = Object.keys(categories);
-            selectedCategory = categoryKeys[Math.floor(Math.random() * categoryKeys.length)];
-            const wordsInCategory = categories[selectedCategory];
+            const categorySelect = document.getElementById('category-select');
+            selectedCategory = categorySelect.value || Object.keys(categories)[0];
+            const wordsInCategory = categories[selectedCategory].words;
             selectedWord = wordsInCategory[Math.floor(Math.random() * wordsInCategory.length)];
             guessedLetters = [];
             remainingGuesses = 6;
 
-            document.getElementById('category').textContent = `Category: ${selectedCategory}`;
             createKeyboard();
             updateDisplay();
             drawHangman(0);
+            document.getElementById('hint').textContent = '';
+            document.getElementById('hint-btn').disabled = false;
         }
 
         function createKeyboard() {
@@ -327,6 +409,7 @@
             for (let key of keys) {
                 key.disabled = true;
             }
+            document.getElementById('hint-btn').disabled = true;
         }
 
         function updateStats(won) {
@@ -361,8 +444,26 @@
             document.getElementById('longest-streak').textContent = stats.longestStreak;
         }
 
+        function populateCategorySelect() {
+            const categorySelect = document.getElementById('category-select');
+            for (const category in categories) {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categorySelect.appendChild(option);
+            }
+        }
+
+        function showHint() {
+            const hintElement = document.getElementById('hint');
+            const hint = categories[selectedCategory].hints[selectedWord];
+            hintElement.textContent = `Hint: ${hint}`;
+            document.getElementById('hint-btn').disabled = true;
+        }
+
         window.onload = function() {
             loadStats();
+            populateCategorySelect();
             initGame();
         };
     </script>
